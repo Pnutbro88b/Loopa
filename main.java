@@ -910,3 +910,79 @@ public final class Loopa {
             for (Map.Entry<String, BigDecimal> e : userAmounts.entrySet()) {
                 String user = e.getKey();
                 BigDecimal amt = e.getValue();
+                if (user == null || amt == null || amt.signum() <= 0) continue;
+                BigDecimal newShares = amt.multiply(LPAConstants.LPA_1E18, LPAConstants.MC).divide(price, LPAConstants.MC);
+                totalShares = totalShares.add(newShares, LPAConstants.MC);
+                unallocatedTvl = unallocatedTvl.add(amt, LPAConstants.MC);
+                LPAVaultShare vs = sharesByUser.get(user);
+                if (vs == null) {
+                    vs = new LPAVaultShare(user, BigDecimal.ZERO);
+                    sharesByUser.put(user, vs);
+                }
+                vs.addShares(newShares);
+                result.put(user, newShares);
+                if (depositEvents.size() < LPA_MAX_EVENTS) {
+                    depositEvents.add(new LPADepositEvent(user, amt, newShares, Instant.now().getEpochSecond()));
+                }
+            }
+            recordSnapshot();
+            return result;
+        } finally {
+            reentrancyLock = 0;
+        }
+    }
+
+    public synchronized Map<String, BigDecimal> batchWithdraw(Map<String, BigDecimal> userShares) {
+        requireNotReentrant();
+        requireNotPaused();
+        reentrancyLock = 1;
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+        try {
+            for (Map.Entry<String, BigDecimal> e : userShares.entrySet()) {
+                String user = e.getKey();
+                BigDecimal sh = e.getValue();
+                if (user == null || sh == null || sh.signum() <= 0) continue;
+                LPAVaultShare vs = sharesByUser.get(user);
+                if (vs == null || vs.getShares().compareTo(sh) < 0) continue;
+                BigDecimal price = getSharePrice();
+                BigDecimal amount = sh.multiply(price, LPAConstants.MC).divide(LPAConstants.LPA_1E18, LPAConstants.MC);
+                BigDecimal fee = amount.multiply(config.getWithdrawalFee(), LPAConstants.MC);
+                totalWithdrawalFeesCollected = totalWithdrawalFeesCollected.add(fee, LPAConstants.MC);
+                BigDecimal afterFee = amount.subtract(fee, LPAConstants.MC);
+                vs.removeShares(sh);
+                if (vs.getShares().signum() == 0) sharesByUser.remove(user);
+                totalShares = totalShares.subtract(sh, LPAConstants.MC);
+                if (totalShares.signum() < 0) totalShares = BigDecimal.ZERO;
+                if (unallocatedTvl.compareTo(amount) < 0) drainFromStrategies(amount.subtract(unallocatedTvl, LPAConstants.MC));
+                unallocatedTvl = unallocatedTvl.subtract(amount, LPAConstants.MC);
+                if (unallocatedTvl.signum() < 0) unallocatedTvl = BigDecimal.ZERO;
+                result.put(user, afterFee);
+                if (withdrawEvents.size() < LPA_MAX_EVENTS) {
+                    withdrawEvents.add(new LPAWithdrawEvent(user, sh, afterFee, Instant.now().getEpochSecond()));
+                }
+            }
+            recordSnapshot();
+            return result;
+        } finally {
+            reentrancyLock = 0;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // SNAPSHOT HELPERS
+    // -------------------------------------------------------------------------
+
+    public LPAVaultSnapshot getLatestSnapshot() {
+        List<LPAVaultSnapshot> list = getSnapshots();
+        return list.isEmpty() ? null : list.get(list.size() - 1);
+    }
+
+    public BigDecimal getSharePriceAt(int snapshotIndex) {
+        List<LPAVaultSnapshot> list = getSnapshots();
+        if (snapshotIndex < 0 || snapshotIndex >= list.size()) {
+            throw new LPAException(LPAErrorCodes.LPA_INDEX_OUT_OF_RANGE, "snapshot index");
+        }
+        return list.get(snapshotIndex).getSharePrice();
+    }
+
+    public int getSnapshotCount() {

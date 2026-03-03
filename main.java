@@ -454,3 +454,79 @@ public final class Loopa {
         requireNotPaused();
         if (user == null || user.isEmpty()) throw new LPAException(LPAErrorCodes.LPA_ZERO_ADDRESS, "User null");
         if (amount == null || amount.signum() <= 0) {
+            throw new LPAException(LPAErrorCodes.LPA_ZERO_AMOUNT, "Amount must be positive");
+        }
+        reentrancyLock = 1;
+        try {
+            BigDecimal tvl = totalVaultTvl();
+            BigDecimal maxTvl = config.getMaxTotalTvl();
+            if (maxTvl.signum() > 0 && tvl.add(amount, LPAConstants.MC).compareTo(maxTvl) > 0) {
+                throw new LPAException(LPAErrorCodes.LPA_ABOVE_CAP, "Vault at cap");
+            }
+            BigDecimal price = getSharePrice();
+            BigDecimal newShares = amount.multiply(LPAConstants.LPA_1E18, LPAConstants.MC).divide(price, LPAConstants.MC);
+            totalShares = totalShares.add(newShares, LPAConstants.MC);
+            unallocatedTvl = unallocatedTvl.add(amount, LPAConstants.MC);
+
+            LPAVaultShare vs = sharesByUser.get(user);
+            if (vs == null) {
+                vs = new LPAVaultShare(user, BigDecimal.ZERO);
+                sharesByUser.put(user, vs);
+            }
+            vs.addShares(newShares);
+
+            recordSnapshot();
+            return newShares;
+        } finally {
+            reentrancyLock = 0;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // WITHDRAW
+    // -------------------------------------------------------------------------
+
+    public synchronized BigDecimal withdraw(String user, BigDecimal shares) {
+        requireNotReentrant();
+        requireNotPaused();
+        if (user == null || user.isEmpty()) throw new LPAException(LPAErrorCodes.LPA_ZERO_ADDRESS, "User null");
+        if (shares == null || shares.signum() <= 0) {
+            throw new LPAException(LPAErrorCodes.LPA_ZERO_AMOUNT, "Shares must be positive");
+        }
+        reentrancyLock = 1;
+        try {
+            LPAVaultShare vs = sharesByUser.get(user);
+            if (vs == null || vs.getShares().compareTo(shares) < 0) {
+                throw new LPAException(LPAErrorCodes.LPA_INSUFFICIENT_SHARES, "Insufficient shares");
+            }
+            BigDecimal price = getSharePrice();
+            BigDecimal amount = shares.multiply(price, LPAConstants.MC).divide(LPAConstants.LPA_1E18, LPAConstants.MC);
+
+            BigDecimal fee = amount.multiply(config.getWithdrawalFee(), LPAConstants.MC);
+            BigDecimal afterFee = amount.subtract(fee, LPAConstants.MC);
+            totalWithdrawalFeesCollected = totalWithdrawalFeesCollected.add(fee, LPAConstants.MC);
+
+            vs.removeShares(shares);
+            if (vs.getShares().signum() == 0) {
+                sharesByUser.remove(user);
+            }
+            totalShares = totalShares.subtract(shares, LPAConstants.MC);
+            if (totalShares.signum() < 0) totalShares = BigDecimal.ZERO;
+
+            if (unallocatedTvl.compareTo(amount) < 0) {
+                BigDecimal needed = amount.subtract(unallocatedTvl, LPAConstants.MC);
+                drainFromStrategies(needed);
+            }
+            unallocatedTvl = unallocatedTvl.subtract(amount, LPAConstants.MC);
+            if (unallocatedTvl.signum() < 0) unallocatedTvl = BigDecimal.ZERO;
+
+            recordSnapshot();
+            return afterFee;
+        } finally {
+            reentrancyLock = 0;
+        }
+    }
+
+    private void drainFromStrategies(BigDecimal needed) {
+        if (needed.signum() <= 0) return;
+        List<LPAStrategy> list = new ArrayList<>(strategiesById.values());

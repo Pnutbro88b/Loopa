@@ -378,3 +378,79 @@ public final class Loopa {
             if (strategy == null) throw new LPAException(LPAErrorCodes.LPA_STRATEGY_MISSING, "Strategy null");
             if (strategiesById.containsKey(strategy.getId())) {
                 throw new LPAException(LPAErrorCodes.LPA_STRATEGY_EXISTS, "Strategy " + strategy.getId());
+            }
+            if (strategiesById.size() >= LPAConstants.LPA_MAX_STRATEGIES) {
+                throw new LPAException(LPAErrorCodes.LPA_MAX_STRATEGIES, "Max strategies");
+            }
+            if (strategy.getAsset() != config.getAsset()) {
+                throw new LPAException(LPAErrorCodes.LPA_ASSET_MISMATCH, "Asset mismatch");
+            }
+            strategiesById.put(strategy.getId(), strategy);
+        } finally {
+            reentrancyLock = 0;
+        }
+    }
+
+    public synchronized void removeStrategy(String strategyId) {
+        requireNotReentrant();
+        reentrancyLock = 1;
+        try {
+            LPAStrategy s = strategiesById.remove(strategyId);
+            if (s == null) return;
+            BigDecimal tvl = s.getTvl();
+            if (tvl.signum() > 0) {
+                s.removeTvl(tvl);
+                unallocatedTvl = unallocatedTvl.add(tvl, LPAConstants.MC);
+            }
+        } finally {
+            reentrancyLock = 0;
+        }
+    }
+
+    public List<LPAStrategy> listStrategies() {
+        return new ArrayList<>(strategiesById.values());
+    }
+
+    public LPAStrategy getStrategy(String id) {
+        return strategiesById.get(id);
+    }
+
+    public int getStrategyCount() {
+        return strategiesById.size();
+    }
+
+    // -------------------------------------------------------------------------
+    // SHARE PRICE & TVL
+    // -------------------------------------------------------------------------
+
+    public synchronized BigDecimal getSharePrice() {
+        BigDecimal tvl = totalVaultTvl();
+        if (totalShares.signum() == 0) return LPAConstants.LPA_1E18;
+        return tvl.multiply(LPAConstants.LPA_1E18, LPAConstants.MC).divide(totalShares, LPAConstants.MC);
+    }
+
+    public synchronized BigDecimal totalVaultTvl() {
+        BigDecimal tvl = unallocatedTvl;
+        for (LPAStrategy s : strategiesById.values()) {
+            tvl = tvl.add(s.getTvl(), LPAConstants.MC);
+        }
+        return tvl;
+    }
+
+    public synchronized BigDecimal getUnallocatedTvl() {
+        return unallocatedTvl;
+    }
+
+    public synchronized BigDecimal getTotalShares() {
+        return totalShares;
+    }
+
+    // -------------------------------------------------------------------------
+    // DEPOSIT
+    // -------------------------------------------------------------------------
+
+    public synchronized BigDecimal deposit(String user, BigDecimal amount) {
+        requireNotReentrant();
+        requireNotPaused();
+        if (user == null || user.isEmpty()) throw new LPAException(LPAErrorCodes.LPA_ZERO_ADDRESS, "User null");
+        if (amount == null || amount.signum() <= 0) {

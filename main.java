@@ -74,3 +74,79 @@ final class LPAErrorCodes {
 }
 
 // -----------------------------------------------------------------------------
+// CONSTANTS
+// -----------------------------------------------------------------------------
+
+final class LPAConstants {
+    static final int LPA_MAX_STRATEGIES = 32;
+    static final int LPA_MAX_SNAPSHOTS = 512;
+    static final int LPA_MAX_APR_SAMPLES = 64;
+    static final BigDecimal LPA_ONE = new BigDecimal("1", new MathContext(18, RoundingMode.HALF_UP));
+    static final BigDecimal LPA_1E18 = new BigDecimal("1000000000000000000", new MathContext(18, RoundingMode.HALF_UP));
+    static final MathContext MC = new MathContext(18, RoundingMode.HALF_UP);
+}
+
+// -----------------------------------------------------------------------------
+// ASSET & RISK
+// -----------------------------------------------------------------------------
+
+enum LPAAsset {
+    USDC(6),
+    DAI(18),
+    WETH(18),
+    WBTC(8),
+    USDT(6);
+
+    private final int decimals;
+
+    LPAAsset(int decimals) {
+        this.decimals = decimals;
+    }
+
+    public int getDecimals() {
+        return decimals;
+    }
+}
+
+enum LPARiskBand {
+    CONSERVATIVE,
+    BALANCED,
+    AGGRESSIVE
+}
+
+enum LPAStrategyState {
+    ACTIVE,
+    PAUSED,
+    RETIRED
+}
+
+// -----------------------------------------------------------------------------
+// APR SAMPLE
+// -----------------------------------------------------------------------------
+
+final class LPAAprSample {
+    private final long timestamp;
+    private final BigDecimal baseApr;
+    private final BigDecimal boostApr;
+
+    LPAAprSample(long timestamp, BigDecimal baseApr, BigDecimal boostApr) {
+        this.timestamp = timestamp;
+        this.baseApr = baseApr;
+        this.boostApr = boostApr;
+    }
+
+    public long getTimestamp() { return timestamp; }
+    public BigDecimal getBaseApr() { return baseApr; }
+    public BigDecimal getBoostApr() { return boostApr; }
+}
+
+// -----------------------------------------------------------------------------
+// STRATEGY
+// -----------------------------------------------------------------------------
+
+final class LPAStrategy {
+    private final String id;
+    private final String name;
+    private final LPAAsset asset;
+    private final LPARiskBand riskBand;
+    private final String protocolLabel;

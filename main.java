@@ -606,3 +606,79 @@ public final class Loopa {
             BigDecimal weight = e.getValue();
             if (weight.signum() <= 0) continue;
             List<LPAStrategy> bandStrategies = byBand.get(band);
+            if (bandStrategies.isEmpty()) continue;
+
+            BigDecimal bandTvl = total.multiply(weight, LPAConstants.MC);
+            BigDecimal per = bandTvl.divide(new BigDecimal(bandStrategies.size()), LPAConstants.MC);
+            for (LPAStrategy s : bandStrategies) {
+                s.addTvl(per);
+            }
+        }
+        recordSnapshot();
+    }
+
+    // -------------------------------------------------------------------------
+    // SNAPSHOTS
+    // -------------------------------------------------------------------------
+
+    private synchronized void recordSnapshot() {
+        LPAVaultSnapshot snap = new LPAVaultSnapshot(
+                Instant.now().getEpochSecond(),
+                totalVaultTvl(),
+                getSharePrice(),
+                sharesByUser.size(),
+                strategiesById.size()
+        );
+        snapshots.add(snap);
+        if (snapshots.size() > LPAConstants.LPA_MAX_SNAPSHOTS) {
+            snapshots.remove(0);
+        }
+    }
+
+    public synchronized List<LPAVaultSnapshot> getSnapshots() {
+        return new ArrayList<>(snapshots);
+    }
+
+    public synchronized Map<String, BigDecimal> getUserSharesView() {
+        Map<String, BigDecimal> out = new LinkedHashMap<>();
+        for (LPAVaultShare vs : sharesByUser.values()) {
+            out.put(vs.getOwner(), vs.getShares());
+        }
+        return out;
+    }
+
+    public BigDecimal getSharesOf(String user) {
+        LPAVaultShare vs = sharesByUser.get(user);
+        return vs == null ? BigDecimal.ZERO : vs.getShares();
+    }
+
+    public int getUserCount() {
+        return sharesByUser.size();
+    }
+
+    public LPAVaultConfig getConfig() {
+        return config;
+    }
+
+    // -------------------------------------------------------------------------
+    // BATCH & VIEW HELPERS
+    // -------------------------------------------------------------------------
+
+    public List<String> getStrategyIds() {
+        return new ArrayList<>(strategiesById.keySet());
+    }
+
+    public LPAStrategy getStrategyAt(int index) {
+        List<LPAStrategy> list = listStrategies();
+        if (index < 0 || index >= list.size()) {
+            throw new LPAException(LPAErrorCodes.LPA_INDEX_OUT_OF_RANGE, "index=" + index);
+        }
+        return list.get(index);
+    }
+
+    public BigDecimal getTvlInStrategy(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? BigDecimal.ZERO : s.getTvl();
+    }
+
+    public BigDecimal getTotalTvlInBand(LPARiskBand band) {

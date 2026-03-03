@@ -530,3 +530,79 @@ public final class Loopa {
     private void drainFromStrategies(BigDecimal needed) {
         if (needed.signum() <= 0) return;
         List<LPAStrategy> list = new ArrayList<>(strategiesById.values());
+        list.sort(Comparator.comparing(LPAStrategy::effectiveApr));
+        BigDecimal remaining = needed;
+        for (LPAStrategy s : list) {
+            BigDecimal tvl = s.getTvl();
+            if (tvl.signum() == 0) continue;
+            BigDecimal take = tvl.min(remaining);
+            s.removeTvl(take);
+            unallocatedTvl = unallocatedTvl.add(take, LPAConstants.MC);
+            remaining = remaining.subtract(take, LPAConstants.MC);
+            if (remaining.signum() <= 0) break;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // REBALANCE
+    // -------------------------------------------------------------------------
+
+    public synchronized void rebalance() {
+        requireNotReentrant();
+        if (unallocatedTvl.signum() <= 0) return;
+
+        List<LPAStrategy> active = strategiesById.values().stream()
+                .filter(s -> s.getState() == LPAStrategyState.ACTIVE)
+                .collect(Collectors.toList());
+        if (active.isEmpty()) return;
+
+        LPAStrategy best = null;
+        for (LPAStrategy s : active) {
+            if (s.getRiskBand() != config.getDefaultBand()) continue;
+            if (best == null || s.effectiveApr().compareTo(best.effectiveApr()) > 0) {
+                best = s;
+            }
+        }
+        if (best == null) {
+            for (LPAStrategy s : active) {
+                if (best == null || s.effectiveApr().compareTo(best.effectiveApr()) > 0) {
+                    best = s;
+                }
+            }
+        }
+        if (best == null) return;
+        BigDecimal move = unallocatedTvl;
+        unallocatedTvl = BigDecimal.ZERO;
+        best.addTvl(move);
+        if (rebalanceEvents.size() < LPA_MAX_EVENTS) {
+            rebalanceEvents.add(new LPARebalanceEvent(best.getId(), move, Instant.now().getEpochSecond()));
+        }
+        recordSnapshot();
+    }
+
+    public synchronized void rebalanceBands(Map<LPARiskBand, BigDecimal> targetWeights) {
+        requireNotReentrant();
+        BigDecimal tvl = totalVaultTvl();
+        if (tvl.signum() == 0) return;
+
+        Map<LPARiskBand, List<LPAStrategy>> byBand = new EnumMap<>(LPARiskBand.class);
+        for (LPARiskBand rb : LPARiskBand.values()) {
+            byBand.put(rb, new ArrayList<>());
+        }
+        for (LPAStrategy s : strategiesById.values()) {
+            if (s.getState() != LPAStrategyState.ACTIVE) continue;
+            byBand.get(s.getRiskBand()).add(s);
+        }
+
+        BigDecimal total = unallocatedTvl;
+        for (LPAStrategy s : strategiesById.values()) {
+            total = total.add(s.getTvl(), LPAConstants.MC);
+            s.removeTvl(s.getTvl());
+        }
+        unallocatedTvl = BigDecimal.ZERO;
+
+        for (Map.Entry<LPARiskBand, BigDecimal> e : targetWeights.entrySet()) {
+            LPARiskBand band = e.getKey();
+            BigDecimal weight = e.getValue();
+            if (weight.signum() <= 0) continue;
+            List<LPAStrategy> bandStrategies = byBand.get(band);

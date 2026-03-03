@@ -758,3 +758,79 @@ public final class Loopa {
         return listStrategiesInBand(band).stream()
                 .filter(s -> s.getState() == LPAStrategyState.ACTIVE)
                 .max(Comparator.comparing(LPAStrategy::effectiveApr))
+                .orElse(null);
+    }
+
+    public BigDecimal getWeightedAverageApr() {
+        BigDecimal tvl = totalVaultTvl();
+        if (tvl.signum() == 0) return BigDecimal.ZERO;
+        BigDecimal weighted = BigDecimal.ZERO;
+        for (LPAStrategy s : strategiesById.values()) {
+            BigDecimal t = s.getTvl();
+            if (t.signum() == 0) continue;
+            weighted = weighted.add(t.multiply(s.effectiveApr(), LPAConstants.MC), LPAConstants.MC);
+        }
+        return weighted.divide(tvl, LPAConstants.MC);
+    }
+
+    public void pauseStrategy(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        if (s == null) throw new LPAException(LPAErrorCodes.LPA_STRATEGY_MISSING, strategyId);
+        s.setState(LPAStrategyState.PAUSED);
+    }
+
+    public void activateStrategy(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        if (s == null) throw new LPAException(LPAErrorCodes.LPA_STRATEGY_MISSING, strategyId);
+        s.setState(LPAStrategyState.ACTIVE);
+    }
+
+    public void retireStrategy(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        if (s == null) throw new LPAException(LPAErrorCodes.LPA_STRATEGY_MISSING, strategyId);
+        s.setState(LPAStrategyState.RETIRED);
+    }
+
+    // -------------------------------------------------------------------------
+    // EVENTS (in-memory log for simulation)
+    // -------------------------------------------------------------------------
+
+    public static final class LPADepositEvent {
+        public final String user;
+        public final BigDecimal amount;
+        public final BigDecimal shares;
+        public final long timestamp;
+
+        LPADepositEvent(String user, BigDecimal amount, BigDecimal shares, long timestamp) {
+            this.user = user;
+            this.amount = amount;
+            this.shares = shares;
+            this.timestamp = timestamp;
+        }
+    }
+
+    public static final class LPAWithdrawEvent {
+        public final String user;
+        public final BigDecimal shares;
+        public final BigDecimal amountAfterFee;
+        public final long timestamp;
+
+        LPAWithdrawEvent(String user, BigDecimal shares, BigDecimal amountAfterFee, long timestamp) {
+            this.user = user;
+            this.shares = shares;
+            this.amountAfterFee = amountAfterFee;
+            this.timestamp = timestamp;
+        }
+    }
+
+    public static final class LPARebalanceEvent {
+        public final String strategyId;
+        public final BigDecimal amountMoved;
+        public final long timestamp;
+
+        LPARebalanceEvent(String strategyId, BigDecimal amountMoved, long timestamp) {
+            this.strategyId = strategyId;
+            this.amountMoved = amountMoved;
+            this.timestamp = timestamp;
+        }
+    }

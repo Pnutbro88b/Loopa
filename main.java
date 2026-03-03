@@ -986,3 +986,79 @@ public final class Loopa {
     }
 
     public int getSnapshotCount() {
+        return snapshots.size();
+    }
+
+    // -------------------------------------------------------------------------
+    // STRATEGY APR HELPERS
+    // -------------------------------------------------------------------------
+
+    public void updateStrategyApr(String strategyId, BigDecimal newBaseApr, BigDecimal newBoostApr) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        if (s == null) throw new LPAException(LPAErrorCodes.LPA_STRATEGY_MISSING, strategyId);
+        s.updateApr(newBaseApr, newBoostApr);
+    }
+
+    public BigDecimal getStrategyEffectiveApr(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? BigDecimal.ZERO : s.effectiveApr();
+    }
+
+    public List<LPAAprSample> getStrategyAprHistory(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? Collections.emptyList() : s.getAprHistory();
+    }
+
+    public List<LPAStrategy> listStrategiesByProtocol(String protocol) {
+        if (protocol == null) return listStrategies();
+        return strategiesById.values().stream()
+                .filter(s -> protocol.equals(s.getProtocolLabel()))
+                .collect(Collectors.toList());
+    }
+
+    public List<LPAStrategy> listStrategiesByChain(String chain) {
+        if (chain == null) return listStrategies();
+        return strategiesById.values().stream()
+                .filter(s -> chain.equals(s.getChainLabel()))
+                .collect(Collectors.toList());
+    }
+
+    public BigDecimal getTvlByProtocol(String protocol) {
+        return listStrategiesByProtocol(protocol).stream()
+                .map(LPAStrategy::getTvl)
+                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b, LPAConstants.MC));
+    }
+
+    public BigDecimal getTvlByChain(String chain) {
+        return listStrategiesByChain(chain).stream()
+                .map(LPAStrategy::getTvl)
+                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b, LPAConstants.MC));
+    }
+
+    public Set<String> getProtocols() {
+        return strategiesById.values().stream().map(LPAStrategy::getProtocolLabel).collect(Collectors.toSet());
+    }
+
+    public Set<String> getChains() {
+        return strategiesById.values().stream().map(LPAStrategy::getChainLabel).collect(Collectors.toSet());
+    }
+
+    public boolean hasStrategy(String strategyId) {
+        return strategiesById.containsKey(strategyId);
+    }
+
+    public int getActiveStrategyCount() {
+        return (int) strategiesById.values().stream().filter(s -> s.getState() == LPAStrategyState.ACTIVE).count();
+    }
+
+    public BigDecimal getManagementFeeRate() {
+        return config.getManagementFee();
+    }
+
+    public BigDecimal getWithdrawalFeeRate() {
+        return config.getWithdrawalFee();
+    }
+
+    public LPAAsset getVaultAsset() {
+        return config.getAsset();
+    }

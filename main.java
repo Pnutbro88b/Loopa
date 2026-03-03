@@ -302,3 +302,79 @@ final class LPAVaultConfig {
     public BigDecimal getManagementFee() { return managementFee; }
     public BigDecimal getWithdrawalFee() { return withdrawalFee; }
     public BigDecimal getMaxTotalTvl() { return maxTotalTvl; }
+}
+
+// -----------------------------------------------------------------------------
+// VAULT SNAPSHOT
+// -----------------------------------------------------------------------------
+
+final class LPAVaultSnapshot {
+    private final long timestamp;
+    private final BigDecimal totalTvl;
+    private final BigDecimal sharePrice;
+    private final int userCount;
+    private final int strategyCount;
+
+    LPAVaultSnapshot(long timestamp, BigDecimal totalTvl, BigDecimal sharePrice, int userCount, int strategyCount) {
+        this.timestamp = timestamp;
+        this.totalTvl = totalTvl;
+        this.sharePrice = sharePrice;
+        this.userCount = userCount;
+        this.strategyCount = strategyCount;
+    }
+
+    public long getTimestamp() { return timestamp; }
+    public BigDecimal getTotalTvl() { return totalTvl; }
+    public BigDecimal getSharePrice() { return sharePrice; }
+    public int getUserCount() { return userCount; }
+    public int getStrategyCount() { return strategyCount; }
+
+    @Override
+    public String toString() {
+        return "LPAVaultSnapshot{t=" + timestamp + ", tvl=" + totalTvl + ", price=" + sharePrice
+                + ", users=" + userCount + ", strategies=" + strategyCount + "}";
+    }
+}
+
+// -----------------------------------------------------------------------------
+// LOOPA VAULT ENGINE
+// -----------------------------------------------------------------------------
+
+public final class Loopa {
+
+    private final LPAVaultConfig config;
+    private final Map<String, LPAVaultShare> sharesByUser = new ConcurrentHashMap<>();
+    private final Map<String, LPAStrategy> strategiesById = new ConcurrentHashMap<>();
+    private final List<LPAVaultSnapshot> snapshots = Collections.synchronizedList(new ArrayList<>());
+
+    private volatile BigDecimal totalShares = BigDecimal.ZERO;
+    private volatile BigDecimal unallocatedTvl = BigDecimal.ZERO;
+    private volatile boolean paused = false;
+    private volatile int reentrancyLock = 0;
+
+    public Loopa(LPAVaultConfig config) {
+        this.config = Objects.requireNonNull(config);
+    }
+
+    private void requireNotPaused() {
+        if (paused) throw new LPAException(LPAErrorCodes.LPA_VAULT_PAUSED, "Vault is paused");
+    }
+
+    private void requireNotReentrant() {
+        if (reentrancyLock != 0) throw new LPAException(LPAErrorCodes.LPA_REENTRANT, "Reentrant call");
+    }
+
+    public boolean isPaused() { return paused; }
+    public void setPaused(boolean p) { this.paused = p; }
+
+    // -------------------------------------------------------------------------
+    // STRATEGY MGMT
+    // -------------------------------------------------------------------------
+
+    public synchronized void addStrategy(LPAStrategy strategy) {
+        requireNotReentrant();
+        reentrancyLock = 1;
+        try {
+            if (strategy == null) throw new LPAException(LPAErrorCodes.LPA_STRATEGY_MISSING, "Strategy null");
+            if (strategiesById.containsKey(strategy.getId())) {
+                throw new LPAException(LPAErrorCodes.LPA_STRATEGY_EXISTS, "Strategy " + strategy.getId());

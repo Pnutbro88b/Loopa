@@ -834,3 +834,79 @@ public final class Loopa {
             this.timestamp = timestamp;
         }
     }
+
+    private final List<LPADepositEvent> depositEvents = Collections.synchronizedList(new ArrayList<>());
+    private final List<LPAWithdrawEvent> withdrawEvents = Collections.synchronizedList(new ArrayList<>());
+    private final List<LPARebalanceEvent> rebalanceEvents = Collections.synchronizedList(new ArrayList<>());
+    private static final int LPA_MAX_EVENTS = 256;
+
+    public List<LPADepositEvent> getDepositEvents() { return new ArrayList<>(depositEvents); }
+    public List<LPAWithdrawEvent> getWithdrawEvents() { return new ArrayList<>(withdrawEvents); }
+    public List<LPARebalanceEvent> getRebalanceEvents() { return new ArrayList<>(rebalanceEvents); }
+
+    // -------------------------------------------------------------------------
+    // FEE TRACKER
+    // -------------------------------------------------------------------------
+
+    private volatile BigDecimal totalWithdrawalFeesCollected = BigDecimal.ZERO;
+
+    public BigDecimal getTotalWithdrawalFeesCollected() {
+        return totalWithdrawalFeesCollected;
+    }
+
+    // -------------------------------------------------------------------------
+    // STATIC HELPERS
+    // -------------------------------------------------------------------------
+
+    public static BigDecimal bd(String v) {
+        return new BigDecimal(v, LPAConstants.MC);
+    }
+
+    public static BigDecimal bd(long v) {
+        return new BigDecimal(v, LPAConstants.MC);
+    }
+
+    public static String formatApr(BigDecimal apr) {
+        if (apr == null) return "0%";
+        return apr.multiply(new BigDecimal("100"), LPAConstants.MC).setScale(2, RoundingMode.HALF_UP) + "%";
+    }
+
+    public static String formatTvl(BigDecimal tvl) {
+        if (tvl == null) return "0";
+        return tvl.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    public static LPARiskBand parseRiskBand(String s) {
+        if (s == null) return LPARiskBand.BALANCED;
+        switch (s.toUpperCase()) {
+            case "CONSERVATIVE": return LPARiskBand.CONSERVATIVE;
+            case "AGGRESSIVE": return LPARiskBand.AGGRESSIVE;
+            default: return LPARiskBand.BALANCED;
+        }
+    }
+
+    public static LPAAsset parseAsset(String s) {
+        if (s == null) return LPAAsset.USDC;
+        switch (s.toUpperCase()) {
+            case "DAI": return LPAAsset.DAI;
+            case "WETH": return LPAAsset.WETH;
+            case "WBTC": return LPAAsset.WBTC;
+            case "USDT": return LPAAsset.USDT;
+            default: return LPAAsset.USDC;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // BATCH DEPOSIT / WITHDRAW (simulation helpers)
+    // -------------------------------------------------------------------------
+
+    public synchronized Map<String, BigDecimal> batchDeposit(Map<String, BigDecimal> userAmounts) {
+        requireNotReentrant();
+        requireNotPaused();
+        reentrancyLock = 1;
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+        try {
+            BigDecimal price = getSharePrice();
+            for (Map.Entry<String, BigDecimal> e : userAmounts.entrySet()) {
+                String user = e.getKey();
+                BigDecimal amt = e.getValue();

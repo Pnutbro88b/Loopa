@@ -1062,3 +1062,79 @@ public final class Loopa {
     public LPAAsset getVaultAsset() {
         return config.getAsset();
     }
+
+    public LPARiskBand getDefaultRiskBand() {
+        return config.getDefaultBand();
+    }
+
+    public BigDecimal getValueOfShares(BigDecimal shares) {
+        if (shares == null || shares.signum() <= 0) return BigDecimal.ZERO;
+        return shares.multiply(getSharePrice(), LPAConstants.MC).divide(LPAConstants.LPA_1E18, LPAConstants.MC);
+    }
+
+    public BigDecimal getSharesOfUser(String user) {
+        return getSharesOf(user);
+    }
+
+    public List<String> getUserIds() {
+        return new ArrayList<>(sharesByUser.keySet());
+    }
+
+    public Map<String, BigDecimal> getStrategyTvlView() {
+        Map<String, BigDecimal> out = new LinkedHashMap<>();
+        for (LPAStrategy s : strategiesById.values()) {
+            out.put(s.getId(), s.getTvl());
+        }
+        return out;
+    }
+
+    public String getStrategyName(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? "" : s.getName();
+    }
+
+    public LPARiskBand getStrategyRiskBand(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? LPARiskBand.BALANCED : s.getRiskBand();
+    }
+
+    public LPAStrategyState getStrategyState(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? LPAStrategyState.RETIRED : s.getState();
+    }
+
+    public BigDecimal getStrategyBaseApr(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? BigDecimal.ZERO : s.getBaseApr();
+    }
+
+    public BigDecimal getStrategyBoostApr(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? BigDecimal.ZERO : s.getBoostApr();
+    }
+
+    public BigDecimal getStrategyPerformanceFee(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? BigDecimal.ZERO : s.getPerformanceFee();
+    }
+
+    public BigDecimal getStrategyMaxCapacity(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? BigDecimal.ZERO : s.getMaxCapacity();
+    }
+
+    public String getStrategyProtocol(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? "" : s.getProtocolLabel();
+    }
+
+    public String getStrategyChain(String strategyId) {
+        LPAStrategy s = strategiesById.get(strategyId);
+        return s == null ? "" : s.getChainLabel();
+    }
+
+    public static LPAVaultConfig defaultUsdcVaultConfig() {
+        return new LPAVaultConfig(
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                new BigDecimal("0.02"),

@@ -682,3 +682,79 @@ public final class Loopa {
     }
 
     public BigDecimal getTotalTvlInBand(LPARiskBand band) {
+        BigDecimal sum = BigDecimal.ZERO;
+        for (LPAStrategy s : strategiesById.values()) {
+            if (s.getRiskBand() == band) {
+                sum = sum.add(s.getTvl(), LPAConstants.MC);
+            }
+        }
+        return sum;
+    }
+
+    public Map<LPARiskBand, BigDecimal> getTvlByBand() {
+        Map<LPARiskBand, BigDecimal> out = new EnumMap<>(LPARiskBand.class);
+        for (LPARiskBand rb : LPARiskBand.values()) {
+            out.put(rb, BigDecimal.ZERO);
+        }
+        for (LPAStrategy s : strategiesById.values()) {
+            LPARiskBand rb = s.getRiskBand();
+            out.put(rb, out.get(rb).add(s.getTvl(), LPAConstants.MC));
+        }
+        return out;
+    }
+
+    public BigDecimal estimateWithdrawAmount(String user, BigDecimal shares) {
+        if (shares == null || shares.signum() <= 0) return BigDecimal.ZERO;
+        BigDecimal price = getSharePrice();
+        BigDecimal amount = shares.multiply(price, LPAConstants.MC).divide(LPAConstants.LPA_1E18, LPAConstants.MC);
+        BigDecimal fee = amount.multiply(config.getWithdrawalFee(), LPAConstants.MC);
+        return amount.subtract(fee, LPAConstants.MC);
+    }
+
+    public BigDecimal estimateSharesForDeposit(BigDecimal amount) {
+        if (amount == null || amount.signum() <= 0) return BigDecimal.ZERO;
+        BigDecimal price = getSharePrice();
+        return amount.multiply(LPAConstants.LPA_1E18, LPAConstants.MC).divide(price, LPAConstants.MC);
+    }
+
+    public boolean canWithdraw(String user, BigDecimal shares) {
+        if (shares == null || shares.signum() <= 0) return false;
+        LPAVaultShare vs = sharesByUser.get(user);
+        if (vs == null) return false;
+        return vs.getShares().compareTo(shares) >= 0;
+    }
+
+    public List<LPAStrategy> listStrategiesByAprDesc() {
+        List<LPAStrategy> list = listStrategies();
+        list.sort((a, b) -> b.effectiveApr().compareTo(a.effectiveApr()));
+        return list;
+    }
+
+    public List<LPAStrategy> listStrategiesByTvlDesc() {
+        List<LPAStrategy> list = listStrategies();
+        list.sort((a, b) -> b.getTvl().compareTo(a.getTvl()));
+        return list;
+    }
+
+    public List<LPAStrategy> listActiveStrategies() {
+        return strategiesById.values().stream()
+                .filter(s -> s.getState() == LPAStrategyState.ACTIVE)
+                .collect(Collectors.toList());
+    }
+
+    public List<LPAStrategy> listStrategiesInBand(LPARiskBand band) {
+        return strategiesById.values().stream()
+                .filter(s -> s.getRiskBand() == band)
+                .collect(Collectors.toList());
+    }
+
+    public LPAStrategy getBestAprStrategy() {
+        List<LPAStrategy> active = listActiveStrategies();
+        if (active.isEmpty()) return null;
+        return active.stream().max(Comparator.comparing(LPAStrategy::effectiveApr)).orElse(null);
+    }
+
+    public LPAStrategy getBestAprStrategyInBand(LPARiskBand band) {
+        return listStrategiesInBand(band).stream()
+                .filter(s -> s.getState() == LPAStrategyState.ACTIVE)
+                .max(Comparator.comparing(LPAStrategy::effectiveApr))

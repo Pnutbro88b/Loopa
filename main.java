@@ -226,3 +226,79 @@ final class LPAStrategy {
         }
         tvl = newTvl;
     }
+
+    synchronized void removeTvl(BigDecimal delta) {
+        if (delta.signum() <= 0) return;
+        tvl = tvl.subtract(delta, LPAConstants.MC);
+        if (tvl.signum() < 0) tvl = BigDecimal.ZERO;
+    }
+
+    BigDecimal effectiveApr() {
+        if (state != LPAStrategyState.ACTIVE) return BigDecimal.ZERO;
+        return baseApr.add(boostApr.multiply(new BigDecimal("0.5"), LPAConstants.MC), LPAConstants.MC);
+    }
+
+    @Override
+    public String toString() {
+        return "LPAStrategy{id=" + id + ", protocol=" + protocolLabel + ", chain=" + chainLabel
+                + ", asset=" + asset + ", band=" + riskBand + ", apr=" + effectiveApr()
+                + ", tvl=" + tvl + ", state=" + state + "}";
+    }
+}
+
+// -----------------------------------------------------------------------------
+// VAULT SHARE
+// -----------------------------------------------------------------------------
+
+final class LPAVaultShare {
+    private final String owner;
+    private BigDecimal shares;
+
+    LPAVaultShare(String owner, BigDecimal shares) {
+        this.owner = owner;
+        this.shares = shares;
+    }
+
+    public String getOwner() { return owner; }
+    public BigDecimal getShares() { return shares; }
+
+    void addShares(BigDecimal s) {
+        shares = shares.add(s, LPAConstants.MC);
+    }
+
+    void removeShares(BigDecimal s) {
+        shares = shares.subtract(s, LPAConstants.MC);
+        if (shares.signum() < 0) shares = BigDecimal.ZERO;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// VAULT CONFIG
+// -----------------------------------------------------------------------------
+
+final class LPAVaultConfig {
+    private final LPAAsset asset;
+    private final LPARiskBand defaultBand;
+    private final BigDecimal managementFee;
+    private final BigDecimal withdrawalFee;
+    private final BigDecimal maxTotalTvl;
+
+    LPAVaultConfig(
+            LPAAsset asset,
+            LPARiskBand defaultBand,
+            BigDecimal managementFee,
+            BigDecimal withdrawalFee,
+            BigDecimal maxTotalTvl
+    ) {
+        this.asset = Objects.requireNonNull(asset);
+        this.defaultBand = Objects.requireNonNull(defaultBand);
+        this.managementFee = Objects.requireNonNull(managementFee);
+        this.withdrawalFee = Objects.requireNonNull(withdrawalFee);
+        this.maxTotalTvl = maxTotalTvl != null ? maxTotalTvl : BigDecimal.ZERO;
+    }
+
+    public LPAAsset getAsset() { return asset; }
+    public LPARiskBand getDefaultBand() { return defaultBand; }
+    public BigDecimal getManagementFee() { return managementFee; }
+    public BigDecimal getWithdrawalFee() { return withdrawalFee; }
+    public BigDecimal getMaxTotalTvl() { return maxTotalTvl; }

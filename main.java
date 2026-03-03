@@ -1138,3 +1138,79 @@ public final class Loopa {
                 LPAAsset.USDC,
                 LPARiskBand.BALANCED,
                 new BigDecimal("0.02"),
+                new BigDecimal("0.001"),
+                BigDecimal.ZERO
+        );
+    }
+
+    public static LPAVaultConfig defaultDaiVaultConfig() {
+        return new LPAVaultConfig(
+                LPAAsset.DAI,
+                LPARiskBand.BALANCED,
+                new BigDecimal("0.015"),
+                new BigDecimal("0.002"),
+                BigDecimal.ZERO
+        );
+    }
+
+    public static LPAVaultConfig conservativeUsdcConfig() {
+        return new LPAVaultConfig(
+                LPAAsset.USDC,
+                LPARiskBand.CONSERVATIVE,
+                new BigDecimal("0.01"),
+                new BigDecimal("0.0005"),
+                new BigDecimal("100000000")
+        );
+    }
+
+    public static LPAStrategy createAaveUsdcEthereum() {
+        return new LPAStrategy(
+                "usdc-aave-eth",
+                "USDC Aave V3 Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.CONSERVATIVE,
+                "Aave",
+                "Ethereum",
+                new BigDecimal("0.048"),
+                new BigDecimal("0.012"),
+                new BigDecimal("0.10"),
+                new BigDecimal("50000000")
+        );
+    }
+
+    public static LPAStrategy createUniswapUsdcArbitrum() {
+        return new LPAStrategy(
+                "usdc-uni-arb",
+                "USDC Uniswap V3 Arbitrum",
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                "Uniswap",
+                "Arbitrum",
+                new BigDecimal("0.11"),
+                new BigDecimal("0.04"),
+                new BigDecimal("0.15"),
+                new BigDecimal("20000000")
+        );
+    }
+
+    public static LPAStrategy createVelodromeUsdcOptimism() {
+        return new LPAStrategy(
+                "usdc-velo-op",
+                "USDC Velodrome V2 Optimism",
+                LPAAsset.USDC,
+                LPARiskBand.AGGRESSIVE,
+                "Velodrome",
+                "Optimism",
+                new BigDecimal("0.22"),
+                new BigDecimal("0.08"),
+                new BigDecimal("0.18"),
+                new BigDecimal("10000000")
+        );
+    }
+
+    public static LPAStrategy createCompoundUsdcEthereum() {
+        return new LPAStrategy(
+                "usdc-comp-eth",
+                "USDC Compound V3 Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.CONSERVATIVE,

@@ -150,3 +150,79 @@ final class LPAStrategy {
     private final LPAAsset asset;
     private final LPARiskBand riskBand;
     private final String protocolLabel;
+    private final String chainLabel;
+    private final BigDecimal baseApr;
+    private final BigDecimal boostApr;
+    private final BigDecimal performanceFee;
+    private final BigDecimal maxCapacity;
+    private volatile LPAStrategyState state;
+    private volatile BigDecimal tvl;
+    private final Deque<LPAAprSample> aprHistory = new ArrayDeque<>();
+
+    LPAStrategy(
+            String id,
+            String name,
+            LPAAsset asset,
+            LPARiskBand riskBand,
+            String protocolLabel,
+            String chainLabel,
+            BigDecimal baseApr,
+            BigDecimal boostApr,
+            BigDecimal performanceFee,
+            BigDecimal maxCapacity
+    ) {
+        this.id = Objects.requireNonNull(id);
+        this.name = Objects.requireNonNull(name);
+        this.asset = Objects.requireNonNull(asset);
+        this.riskBand = Objects.requireNonNull(riskBand);
+        this.protocolLabel = Objects.requireNonNull(protocolLabel);
+        this.chainLabel = Objects.requireNonNull(chainLabel);
+        this.baseApr = Objects.requireNonNull(baseApr);
+        this.boostApr = Objects.requireNonNull(boostApr);
+        this.performanceFee = Objects.requireNonNull(performanceFee);
+        this.maxCapacity = Objects.requireNonNull(maxCapacity);
+        this.state = LPAStrategyState.ACTIVE;
+        this.tvl = BigDecimal.ZERO;
+    }
+
+    synchronized void updateApr(BigDecimal newBase, BigDecimal newBoost) {
+        LPAAprSample sample = new LPAAprSample(
+                Instant.now().getEpochSecond(),
+                newBase,
+                newBoost
+        );
+        aprHistory.addLast(sample);
+        while (aprHistory.size() > LPAConstants.LPA_MAX_APR_SAMPLES) {
+            aprHistory.removeFirst();
+        }
+    }
+
+    synchronized List<LPAAprSample> getAprHistory() {
+        return new ArrayList<>(aprHistory);
+    }
+
+    public String getId() { return id; }
+    public String getName() { return name; }
+    public LPAAsset getAsset() { return asset; }
+    public LPARiskBand getRiskBand() { return riskBand; }
+    public String getProtocolLabel() { return protocolLabel; }
+    public String getChainLabel() { return chainLabel; }
+    public BigDecimal getBaseApr() { return baseApr; }
+    public BigDecimal getBoostApr() { return boostApr; }
+    public BigDecimal getPerformanceFee() { return performanceFee; }
+    public BigDecimal getMaxCapacity() { return maxCapacity; }
+    public LPAStrategyState getState() { return state; }
+    public void setState(LPAStrategyState state) { this.state = Objects.requireNonNull(state); }
+
+    synchronized BigDecimal getTvl() {
+        return tvl;
+    }
+
+    synchronized void addTvl(BigDecimal delta) {
+        if (delta.signum() <= 0) return;
+        BigDecimal newTvl = tvl.add(delta, LPAConstants.MC);
+        if (maxCapacity.signum() > 0 && newTvl.compareTo(maxCapacity) > 0) {
+            throw new LPAException(LPAErrorCodes.LPA_ABOVE_CAP, "Strategy " + id + " above cap");
+        }
+        tvl = newTvl;
+    }

@@ -1290,3 +1290,79 @@ public final class Loopa {
         m.put("strategyCount", strategiesById.size());
         m.put("userCount", sharesByUser.size());
         m.put("weightedApr", getWeightedAverageApr());
+        m.put("unallocatedTvl", unallocatedTvl);
+        m.put("paused", paused);
+        m.put("totalWithdrawalFees", totalWithdrawalFeesCollected);
+        return m;
+    }
+
+    public List<Map<String, Object>> getStrategySummaryList() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (LPAStrategy s : strategiesById.values()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", s.getId());
+            m.put("name", s.getName());
+            m.put("protocol", s.getProtocolLabel());
+            m.put("chain", s.getChainLabel());
+            m.put("riskBand", s.getRiskBand().name());
+            m.put("tvl", s.getTvl());
+            m.put("effectiveApr", s.effectiveApr());
+            m.put("state", s.getState().name());
+            out.add(m);
+        }
+        return out;
+    }
+
+    public BigDecimal computeProjectedYield(BigDecimal principal, int days) {
+        if (principal == null || principal.signum() <= 0 || days <= 0) return principal;
+        BigDecimal apr = getWeightedAverageApr();
+        BigDecimal dailyRate = apr.divide(new BigDecimal("365"), LPAConstants.MC);
+        BigDecimal factor = LPAConstants.LPA_ONE.add(dailyRate, LPAConstants.MC);
+        BigDecimal result = principal;
+        for (int i = 0; i < days; i++) {
+            result = result.multiply(factor, LPAConstants.MC);
+        }
+        return result;
+    }
+
+    public BigDecimal computeProjectedYieldSimple(BigDecimal principal, int days) {
+        if (principal == null || principal.signum() <= 0 || days <= 0) return principal;
+        BigDecimal apr = getWeightedAverageApr();
+        BigDecimal yield = principal.multiply(apr, LPAConstants.MC)
+                .multiply(new BigDecimal(days), LPAConstants.MC)
+                .divide(new BigDecimal("365"), LPAConstants.MC);
+        return principal.add(yield, LPAConstants.MC);
+    }
+
+    public boolean isHealthy() {
+        if (totalShares.signum() > 0 && totalVaultTvl().signum() <= 0) return false;
+        if (paused) return true;
+        for (LPAStrategy s : strategiesById.values()) {
+            if (s.getState() == LPAStrategyState.ACTIVE && s.getTvl().signum() < 0) return false;
+        }
+        return true;
+    }
+
+    public BigDecimal getLiquidityRatio() {
+        BigDecimal total = totalVaultTvl();
+        if (total.signum() == 0) return LPAConstants.LPA_ONE;
+        return unallocatedTvl.divide(total, LPAConstants.MC);
+    }
+
+    public int getDepositEventCount() { return depositEvents.size(); }
+    public int getWithdrawEventCount() { return withdrawEvents.size(); }
+    public int getRebalanceEventCount() { return rebalanceEvents.size(); }
+
+    public void clearEvents() {
+        depositEvents.clear();
+        withdrawEvents.clear();
+        rebalanceEvents.clear();
+    }
+
+    public static BigDecimal safeDivide(BigDecimal a, BigDecimal b, BigDecimal defaultVal) {
+        if (a == null || b == null || b.signum() == 0) return defaultVal != null ? defaultVal : BigDecimal.ZERO;
+        return a.divide(b, LPAConstants.MC);
+    }
+
+    public static BigDecimal min(BigDecimal a, BigDecimal b) {
+        if (a == null) return b;

@@ -1366,3 +1366,79 @@ public final class Loopa {
 
     public static BigDecimal min(BigDecimal a, BigDecimal b) {
         if (a == null) return b;
+        if (b == null) return a;
+        return a.min(b);
+    }
+
+    public static BigDecimal max(BigDecimal a, BigDecimal b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return a.max(b);
+    }
+
+    public static boolean isValidFee(BigDecimal fee) {
+        return fee != null && fee.compareTo(BigDecimal.ZERO) >= 0 && fee.compareTo(LPAConstants.LPA_ONE) <= 0;
+    }
+
+    public static LPAStrategy createMorphoUsdcEthereum() {
+        return new LPAStrategy(
+                "usdc-morpho-eth",
+                "USDC Morpho Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                "Morpho",
+                "Ethereum",
+                new BigDecimal("0.072"),
+                new BigDecimal("0.018"),
+                new BigDecimal("0.12"),
+                new BigDecimal("15000000")
+        );
+    }
+
+    public static LPAStrategy createAaveUsdcPolygon() {
+        return new LPAStrategy(
+                "usdc-aave-poly",
+                "USDC Aave V3 Polygon",
+                LPAAsset.USDC,
+                LPARiskBand.CONSERVATIVE,
+                "Aave",
+                "Polygon",
+                new BigDecimal("0.055"),
+                new BigDecimal("0.015"),
+                new BigDecimal("0.10"),
+                new BigDecimal("20000000")
+        );
+    }
+
+    public static LPAStrategy createYearnUsdcEthereum() {
+        return new LPAStrategy(
+                "usdc-yearn-eth",
+                "USDC Yearn Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                "Yearn",
+                "Ethereum",
+                new BigDecimal("0.058"),
+                new BigDecimal("0.022"),
+                new BigDecimal("0.20"),
+                new BigDecimal("12000000")
+        );
+    }
+
+    public static LPAStrategy createConvexUsdcEthereum() {
+        return new LPAStrategy(
+                "usdc-convex-eth",
+                "USDC Convex Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.AGGRESSIVE,
+                "Convex",
+                "Ethereum",
+                new BigDecimal("0.085"),
+                new BigDecimal("0.035"),
+                new BigDecimal("0.17"),
+                new BigDecimal("8000000")
+        );
+    }
+
+    public static LPAStrategy createBalancerUsdcEthereum() {
+        return new LPAStrategy(

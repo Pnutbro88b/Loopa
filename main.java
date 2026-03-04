@@ -1214,3 +1214,79 @@ public final class Loopa {
                 "USDC Compound V3 Ethereum",
                 LPAAsset.USDC,
                 LPARiskBand.CONSERVATIVE,
+                "Compound",
+                "Ethereum",
+                new BigDecimal("0.042"),
+                new BigDecimal("0.008"),
+                new BigDecimal("0.08"),
+                new BigDecimal("30000000")
+        );
+    }
+
+    public static LPAStrategy createCurveUsdcEthereum() {
+        return new LPAStrategy(
+                "usdc-curve-eth",
+                "USDC Curve Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                "Curve",
+                "Ethereum",
+                new BigDecimal("0.065"),
+                new BigDecimal("0.02"),
+                new BigDecimal("0.12"),
+                new BigDecimal("25000000")
+        );
+    }
+
+    public static List<LPAStrategy> createDefaultStrategySet() {
+        List<LPAStrategy> list = new ArrayList<>();
+        list.add(createAaveUsdcEthereum());
+        list.add(createUniswapUsdcArbitrum());
+        list.add(createVelodromeUsdcOptimism());
+        list.add(createCompoundUsdcEthereum());
+        list.add(createCurveUsdcEthereum());
+        return list;
+    }
+
+    public static Loopa createDemoVault() {
+        LPAVaultConfig cfg = defaultUsdcVaultConfig();
+        Loopa v = new Loopa(cfg);
+        for (LPAStrategy s : createDefaultStrategySet()) {
+            v.addStrategy(s);
+        }
+        return v;
+    }
+
+    public void runDemoSequence() {
+        deposit("alice", new BigDecimal("200000"));
+        deposit("bob", new BigDecimal("100000"));
+        rebalance();
+        LPAStrategy best = getBestAprStrategy();
+        if (best != null) {
+            best.updateApr(new BigDecimal("0.15"), new BigDecimal("0.05"));
+        }
+        rebalance();
+        BigDecimal half = getSharesOf("alice").divide(new BigDecimal("2"), LPAConstants.MC);
+        withdraw("alice", half);
+    }
+
+    public String toSummaryString() {
+        return "Loopa{vaultAsset=" + config.getAsset()
+                + ", totalTvl=" + formatTvl(totalVaultTvl())
+                + ", totalShares=" + formatTvl(totalShares)
+                + ", sharePrice=" + formatTvl(getSharePrice())
+                + ", strategies=" + strategiesById.size()
+                + ", users=" + sharesByUser.size()
+                + ", weightedApr=" + formatApr(getWeightedAverageApr())
+                + "}";
+    }
+
+    public Map<String, Object> toSummaryMap() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("asset", config.getAsset().name());
+        m.put("totalTvl", totalVaultTvl());
+        m.put("totalShares", totalShares);
+        m.put("sharePrice", getSharePrice());
+        m.put("strategyCount", strategiesById.size());
+        m.put("userCount", sharesByUser.size());
+        m.put("weightedApr", getWeightedAverageApr());

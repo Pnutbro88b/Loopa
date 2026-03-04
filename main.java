@@ -1442,3 +1442,79 @@ public final class Loopa {
 
     public static LPAStrategy createBalancerUsdcEthereum() {
         return new LPAStrategy(
+                "usdc-bal-eth",
+                "USDC Balancer Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                "Balancer",
+                "Ethereum",
+                new BigDecimal("0.062"),
+                new BigDecimal("0.025"),
+                new BigDecimal("0.14"),
+                new BigDecimal("18000000")
+        );
+    }
+
+    public static LPAStrategy createLidoWethEthereum() {
+        return new LPAStrategy(
+                "weth-lido-eth",
+                "WETH Lido Ethereum",
+                LPAAsset.WETH,
+                LPARiskBand.CONSERVATIVE,
+                "Lido",
+                "Ethereum",
+                new BigDecimal("0.038"),
+                new BigDecimal("0.005"),
+                new BigDecimal("0.10"),
+                new BigDecimal("50000")
+        );
+    }
+
+    public static List<LPAStrategy> createExtendedStrategySet() {
+        List<LPAStrategy> list = createDefaultStrategySet();
+        list.add(createMorphoUsdcEthereum());
+        list.add(createAaveUsdcPolygon());
+        list.add(createYearnUsdcEthereum());
+        list.add(createConvexUsdcEthereum());
+        list.add(createBalancerUsdcEthereum());
+        return list;
+    }
+
+    public void addAllDefaultStrategies() {
+        for (LPAStrategy s : createDefaultStrategySet()) {
+            if (!strategiesById.containsKey(s.getId())) {
+                addStrategy(s);
+            }
+        }
+    }
+
+    public void addAllExtendedStrategies() {
+        for (LPAStrategy s : createExtendedStrategySet()) {
+            if (!strategiesById.containsKey(s.getId())) {
+                addStrategy(s);
+            }
+        }
+    }
+
+    public BigDecimal getTotalFeesCollected() {
+        return totalWithdrawalFeesCollected;
+    }
+
+    public BigDecimal estimateManagementFee(BigDecimal tvl, int days) {
+        if (tvl == null || tvl.signum() <= 0 || days <= 0) return BigDecimal.ZERO;
+        BigDecimal annualFee = tvl.multiply(config.getManagementFee(), LPAConstants.MC);
+        return annualFee.multiply(new BigDecimal(days), LPAConstants.MC).divide(new BigDecimal("365"), LPAConstants.MC);
+    }
+
+    public List<String> getStrategyIdsInBand(LPARiskBand band) {
+        return listStrategiesInBand(band).stream().map(LPAStrategy::getId).collect(Collectors.toList());
+    }
+
+    public List<String> getStrategyIdsByProtocol(String protocol) {
+        return listStrategiesByProtocol(protocol).stream().map(LPAStrategy::getId).collect(Collectors.toList());
+    }
+
+    public List<String> getStrategyIdsByChain(String chain) {
+        return listStrategiesByChain(chain).stream().map(LPAStrategy::getId).collect(Collectors.toList());
+    }
+

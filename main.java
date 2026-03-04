@@ -1594,3 +1594,60 @@ public final class Loopa {
                 new BigDecimal("0.01"),
                 new BigDecimal("0.10"),
                 new BigDecimal("10000000")
+        );
+        LPAStrategy s2 = new LPAStrategy(
+                "usdc-uni-arb",
+                "USDC Uniswap Arbitrum",
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                "Uniswap",
+                "Arbitrum",
+                new BigDecimal("0.12"),
+                new BigDecimal("0.03"),
+                new BigDecimal("0.15"),
+                new BigDecimal("5000000")
+        );
+        LPAStrategy s3 = new LPAStrategy(
+                "usdc-velo-op",
+                "USDC Velodrome Optimism",
+                LPAAsset.USDC,
+                LPARiskBand.AGGRESSIVE,
+                "Velodrome",
+                "Optimism",
+                new BigDecimal("0.20"),
+                new BigDecimal("0.07"),
+                new BigDecimal("0.20"),
+                new BigDecimal("3000000")
+        );
+
+        vault.addStrategy(s1);
+        vault.addStrategy(s2);
+        vault.addStrategy(s3);
+
+        System.out.println("Loopa vault demo");
+        System.out.println("Initial TVL: " + vault.totalVaultTvl());
+        System.out.println("Share price: " + vault.getSharePrice());
+
+        vault.deposit("alice", new BigDecimal("100000"));
+        vault.deposit("bob", new BigDecimal("50000"));
+
+        System.out.println("After deposits TVL=" + vault.totalVaultTvl() + " shares=" + vault.getTotalShares());
+        vault.rebalance();
+        for (LPAStrategy s : vault.listStrategies()) {
+            System.out.println("  " + s);
+        }
+
+        s2.updateApr(new BigDecimal("0.18"), new BigDecimal("0.04"));
+        vault.rebalance();
+
+        BigDecimal aliceShares = vault.getSharesOf("alice");
+        BigDecimal out = vault.withdraw("alice", aliceShares.divide(new BigDecimal("2"), LPAConstants.MC));
+        System.out.println("Alice withdrew (after fee): " + out);
+
+        System.out.println("Final TVL=" + vault.totalVaultTvl());
+        for (LPAVaultSnapshot snap : vault.getSnapshots()) {
+            System.out.println("  " + snap);
+        }
+        System.out.println("Loopa demo done.");
+    }
+}

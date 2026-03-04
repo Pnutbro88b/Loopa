@@ -1518,3 +1518,79 @@ public final class Loopa {
         return listStrategiesByChain(chain).stream().map(LPAStrategy::getId).collect(Collectors.toList());
     }
 
+    public BigDecimal getTotalTvlInProtocol(String protocol) {
+        return getTvlByProtocol(protocol);
+    }
+
+    public BigDecimal getTotalTvlInChain(String chain) {
+        return getTvlByChain(chain);
+    }
+
+    public int countStrategiesInBand(LPARiskBand band) {
+        return listStrategiesInBand(band).size();
+    }
+
+    public int countStrategiesByProtocol(String protocol) {
+        return listStrategiesByProtocol(protocol).size();
+    }
+
+    public int countStrategiesByChain(String chain) {
+        return listStrategiesByChain(chain).size();
+    }
+
+    public Optional<LPAStrategy> findStrategyByName(String name) {
+        return strategiesById.values().stream().filter(s -> name.equals(s.getName())).findFirst();
+    }
+
+    public Optional<LPAStrategy> findHighestTvlStrategy() {
+        return strategiesById.values().stream()
+                .max(Comparator.comparing(LPAStrategy::getTvl));
+    }
+
+    public Optional<LPAStrategy> findLowestAprActiveStrategy() {
+        return listActiveStrategies().stream()
+                .min(Comparator.comparing(LPAStrategy::effectiveApr));
+    }
+
+    public BigDecimal getTotalCapacity() {
+        return strategiesById.values().stream()
+                .map(LPAStrategy::getMaxCapacity)
+                .filter(c -> c.signum() > 0)
+                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b, LPAConstants.MC));
+    }
+
+    public BigDecimal getUsedCapacity() {
+        return totalVaultTvl();
+    }
+
+    public BigDecimal getCapacityUtilization() {
+        BigDecimal total = getTotalCapacity();
+        if (total.signum() == 0) return BigDecimal.ZERO;
+        return totalVaultTvl().divide(total, LPAConstants.MC);
+    }
+
+    // -------------------------------------------------------------------------
+    // MAIN / DEMO
+    // -------------------------------------------------------------------------
+
+    public static void main(String[] args) {
+        LPAVaultConfig cfg = new LPAVaultConfig(
+                LPAAsset.USDC,
+                LPARiskBand.BALANCED,
+                new BigDecimal("0.02"),
+                new BigDecimal("0.001"),
+                BigDecimal.ZERO
+        );
+        Loopa vault = new Loopa(cfg);
+
+        LPAStrategy s1 = new LPAStrategy(
+                "usdc-aave-eth",
+                "USDC Aave Ethereum",
+                LPAAsset.USDC,
+                LPARiskBand.CONSERVATIVE,
+                "Aave",
+                "Ethereum",
+                new BigDecimal("0.05"),
+                new BigDecimal("0.01"),
+                new BigDecimal("0.10"),
+                new BigDecimal("10000000")
